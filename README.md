@@ -71,7 +71,7 @@
 
 然后看着它一条条执行、最后给你报告。输入 `quit` 退出。
 
-**不需要装任何东西。** node、Git Bash、Python 都在 `runtime/` 里带着，整个文件夹拷到任何 Windows 机器上都能跑（见 [换一台电脑用](#更换设备)）。
+**不需要装任何东西。** node、Git Bash、Python 都在 `runtime/` 里带着，整个文件夹拷到任何 Windows 机器上都能跑（见 [更换设备](#更换设备)）。
 
 ---
 
@@ -171,7 +171,7 @@ thinking=minimal
 base_url=http(s)://ip/v1
 ```
 
-在 `key=` 后面填上 key。五个字段的含义见 [换 provider 和 key](#更换-provider-和-key)。
+在 `key=` 后面填上 key。五个字段的含义见 [更换-provider-和-key](#更换-provider-和-key)。
 
 ---
 
