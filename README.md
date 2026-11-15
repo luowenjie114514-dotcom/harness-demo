@@ -20,7 +20,7 @@
 **开发过程中使用了 DeepSeek 参与开发**：代码实现、排错（WSL bash 误用、Git Bash shim 问题、provider 配置生成）、文档撰写均有 AI 辅助。具体做了哪些事，见下节。
 
 
-### 我们实际做了什么
+### 工作内容
 
 | 工作 | 说明 |
 |---|---|
@@ -40,7 +40,7 @@
 
 ---
 
-## 本仓库包含什么
+## 本仓库包含
 
 | 类型 | 文件 |
 |---|---|
@@ -71,7 +71,7 @@
 
 然后看着它一条条执行、最后给你报告。输入 `quit` 退出。
 
-**不需要装任何东西。** node、Git Bash、Python 都在 `runtime/` 里带着，整个文件夹拷到任何 Windows 机器上都能跑（见 [换一台电脑用](#换一台电脑用)）。
+**不需要装任何东西。** node、Git Bash、Python 都在 `runtime/` 里带着，整个文件夹拷到任何 Windows 机器上都能跑（见 [换一台电脑用](#更换设备)）。
 
 ---
 
@@ -119,7 +119,7 @@
 调试模式强制打开 `thinking`，演示"它在想什么"时用这个。
 **直接回车**进普通模式，只显示工具动作和最终结论，适合正式展示。
 
-### 界面怎么读（普通模式）
+### 界面阅读（普通模式）
 
 ```
 > 这个文件夹有点乱，根据用途分类
@@ -138,7 +138,7 @@
 - **没有箭头的一大段** —— agent 对用户输出
 
 
-### 可以直接下的指令
+### 指令参考
 
 `stage/AGENTS.md` 只规定了五条**行为规矩**（不许删、不许覆盖、前后数数、看内容不看后缀、最后报告）
 
@@ -171,7 +171,7 @@ thinking=minimal
 base_url=http(s)://ip/v1
 ```
 
-在 `key=` 后面填上 key。五个字段的含义见 [换 provider 和 key](#换-provider-和-key)。
+在 `key=` 后面填上 key。五个字段的含义见 [换 provider 和 key](#更换-provider-和-key)。
 
 ---
 
@@ -208,7 +208,7 @@ harness-demo/
 
 ---
 
-## 换一台电脑用
+## 更换设备
 
 ### 一般使用的方式
 
@@ -224,7 +224,7 @@ harness-demo/
 - 路径里**可以有中文和空格**，脚本都用 `%~dp0` 自己定位
 - 路径**不要超过 240 个字符**，Windows 老 API 有长度限制
 
-### 换 provider 和 key
+### 更换 provider 和 key
 
 只改 `key.txt` 这五行，重新双击 `3_chat.cmd` 就生效：
 
@@ -323,7 +323,7 @@ base_url=https://api.example.com/v1
 
 `bash.exe` 找到之后还要**实跑一句 `bash -c "echo __BASH_OK__"` 验证**，跑不通的（典型就是 WSL 启动器）直接跳过换下一个。光看文件存在不算数，见坑 1。
 
-`runtime\git` 是 PortableGit 裁剪过的版本，只留了 `usr/` 和 `etc/`（68 MB，原版 130 MB）。**不能只留 `bin/bash.exe`**——那个 47 KB 的文件其实是 `git.exe` 的 shim，删掉 `mingw64/` 之后它会报 `Top-level not found`。正确做法是用 `usr\bin\bash.exe`，并且把 `usr\bin` 放进 PATH，否则 `find` / `wc` / `md5sum` 全都找不到（`chat.py` 的 `bash_dirs()` 会自动做这件事）。
+`runtime\git` 是 PortableGit 裁剪过的版本
 
 ---
 
@@ -338,9 +338,6 @@ base_url=https://api.example.com/v1
 **agent 一执行 bash 就报 `execvpe(/bin/bash) failed`**
 → 它用上了 WSL 的启动器（`C:\Windows\System32\bash.exe`）。删掉 `.pi-agent/` 让它重新生成 `settings.json`；还不行就是 `find_bash()` 没找到可用 bash，见坑 1。
 
-**报 `Unknown provider "apigoto"`**
-→ `.pi-agent/models.json` 没生成或内容不对。删掉 `.pi-agent/` 重新启动即可。
-
 **agent 说 `file: command not found`**
 → 正常。裁剪版 Git Bash 没有 `file`，它会自己退回 `od` / `xxd` 看魔数。想第一轮就顺，可以在 `stage/AGENTS.md` 里直接提示用 `xxd`。
 
@@ -349,9 +346,6 @@ base_url=https://api.example.com/v1
 
 **每轮都很慢**
 → 慢在模型推理，不在本地。可以把 `thinking=` 设成 `off` 或 `minimal` 提速。
-
-**杀毒软件把执行拖得很慢**
-→ 把整个文件夹加进白名单，见坑 6。
 
 **整理完想重来**
 → `2_clear.cmd` 清空，`1_make.cmd` 重建，两条命令回到初始状态。
