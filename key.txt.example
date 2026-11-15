@@ -1,0 +1,28 @@
+# 把下面的 key 换成你自己的，然后把这个文件改名成 key.txt，保存。
+# 这个文件不要发给别人。
+
+provider=apigoto
+model=deepseek-flash
+key=
+thinking=minimal
+base_url=https://api.apigoto.com/v1
+
+# ---------------------------------------------------------------
+# 四行分别是什么意思：
+#
+# provider   供应商名字，自己起也行。改了它，下面 base_url 必须一起改。
+# model      模型 id，写供应商文档里那个名字。
+# key        你的 API key。这是唯一必填的一项。
+# thinking   思考档位：off / minimal / low / medium / high / xhigh / max
+#            留空或 off 就是不带 --thinking 参数。
+# base_url   OpenAI 兼容接口的地址，一般以 /v1 结尾。
+#
+# 换一家供应商的例子（假设叫 myprov）：
+#   provider=myprov
+#   model=some-model
+#   key=sk-xxxx
+#   thinking=
+#   base_url=https://api.example.com/v1
+#
+# 改完保存，重新双击 3_chat.cmd 就生效。
+# ---------------------------------------------------------------
