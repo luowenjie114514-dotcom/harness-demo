@@ -358,122 +358,21 @@ base_url=https://api.example.com/v1
 
 ---
 
-## 八个坑（都踩过，别再踩）
-
-### 1. Windows 上 Pi 会去用 WSL 的 bash
-
-`shell.js` 的解析顺序是：`settings.json` 的 `shellPath` → `%ProgramFiles%\Git\bin\bash.exe` → **PATH 里第一个 `bash.exe`**。
-
-这台机器 PATH 里第一个是 `C:\Windows\System32\bash.exe`，那只是 WSL 启动器，WSL 装不起来，于是每次 `bash` 调用都报 `execvpe(/bin/bash) failed`。
-
-**修法**：`chat.py` 启动时把 Git Bash 的绝对路径写进 `.pi-agent/settings.json` 的 `shellPath`（第 1 优先级，一写就生效）。这个目录是包内的，靠 `PI_CODING_AGENT_DIR` 指过去。
-
-**但光写还不够** —— 早先的 `find_bash()` 是 `p = shutil.which("bash"); if p: return p`，`which` 在这台机器上返回的正是 `C:\WINDOWS\system32\bash.EXE`，于是它把 WSL 启动器当成答案写进了 `shellPath`，glob 回退分支一次都没跑到。表现和"没修"一模一样，还更隐蔽：settings.json 里明明有值。
-
-现在的顺序是：把 PATH 命中的和 glob 命中的候选**全部收集起来**，先剔除 `System32\bash.exe` / `Sysnative\bash.exe` / `WindowsApps\bash.exe` 这几个 WSL 启动器，再对剩下的逐个 `subprocess.run` 跑一句 `echo __BASH_OK__`，第一个真的跑通的才算数（`chat.py` 的 `is_wsl_bash()` 和 `bash_works()`）。被跳过的候选一律不写进 `settings.json`，找不到就明确报"找不到 bash.exe，装个 Git for Windows"，不再静默写一个坏路径。
-
-### 2. `.cmd` 文件必须纯 ASCII
-
-cmd.exe 按系统代码页解析批处理文件，UTF-8 存的中文会全乱，导致 `echo` 变成一堆乱码命令、`cd` 失效、脚本去 `C:\Windows\System32` 找 python 文件。
-
-**修法**：三个 `.cmd` 里一个非 ASCII 字节都没有，中文全放在 `.py` 里。
-
-### 3. Pi 在管道里会卡住等 stdin
-
-不加 `< /dev/null` 或 `stdin=subprocess.DEVNULL`，`-p` 模式会一直等输入，看起来像卡死。
-
-**修法**：`Popen(..., stdin=subprocess.DEVNULL)`。
-
-### 4. 空 session 会让演示"记得上一轮"
-
-如果复用固定 session id，第二次演示时 agent 会说"我上次已经整理过了"。
-
-**修法**：`sid = f"demo{int(time.time())}"`，每次启动换一个。
-
-### 5. `mv` 会静默覆盖同名文件
-
-Pi 用 `mv` 移动文件时，如果目标目录已存在同名文件，**直接覆盖，不报错，原文件消失**。这个问题真实发生过一次，丢了一个 `实验报告.pdf`。
-
-**修法**：`stage/AGENTS.md` 第 2 条明确写"用 `mv -n`，永远不要覆盖"。
-
-### 6. 杀毒软件会让生成文件变得极慢
-
-早期生成 187 个几十 MB 的文件要 44 秒，其中大部分时间花在实时扫描上。
-
-**修法**：文件压到 340KB 以内，45 个文件 0.5 秒。
-
-### 7. 换个文件夹就报 `Unknown provider`
-
-`apigoto` 不是 Pi 的内置 provider，它只存在于 `~/.pi/agent/models.json`。原版 `chat.py` 每次都在 `ask()` 里硬编码 `--provider apigoto`，却从来没管过这个文件存不存在。于是**把这个文件夹拷到别的机器、或者换一个 Windows 用户，第一条消息就报**：
-
-```
-Error: Unknown provider "apigoto". Use --list-models to see available providers/models.
-```
-
-同时 `key.txt` 里那行 `provider=` 是死的：`load_key()` 只读 `key=`，另外两行写得再对也没人看。
-
-**修法**：
-- `chat.py` 现在用 `load_cfg()` 把 `provider` / `model` / `key` / `thinking` / `base_url` 全部读出来
-- 每次启动按这几行**重新生成** `.pi-agent/models.json`，provider 名、模型 id、base_url 都跟着 `key.txt` 走
-- `PI_CODING_AGENT_DIR` 指向包内 `.pi-agent`，Pi 不去碰 `~/.pi`
-
-于是"换 provider"变成真的改一行就生效，拷到别的机器也不会因为缺 models.json 而崩。
-
-### 8. `key.txt` 用记事本存会带 BOM
-
-Windows 记事本存 UTF-8 默认加 BOM（`EF BB BF`）。第一行被读成 `\ufeff# 把下面的...`，虽然当前不影响 `provider=` 的解析（它在第二行），但改一下顺序就会踩。
-
-**修法**：`load_cfg()` 用 `encoding="utf-8-sig"` 读，有没有 BOM 都能正确解析。
-
----
-
-## AGENTS.md：这是整个演示的核心
-
-`stage/AGENTS.md` 会被 Pi 自动加载进每一轮的系统提示。五条规矩：
-
-1. 不许删除任何文件，只能移动
-2. 移动前检查同名，有就停下报告，用 `mv -n`
-3. 动手前后各数一遍文件总数，对不上就停
-4. 后缀不等于内容，归类前先看文件本体
-5. 最后报告：移了多少、现在多少、哪几个没动、为什么
-
-**第 4 条是演示的高光**：只写了这一句，agent 就真的去逐个校验文件魔数（`%PDF` / `49 46` / `MZ` / `ftypmp42` / `ID3`），然后揪出那个后缀是 `.pdf`、内容其实是 PNG 的"发票"。
-
-改这五条，agent 的行为会立刻变。这是最容易做对比实验的地方——把第 4 条删掉，它就会老老实实按后缀分类，把 PNG 当成 PDF 塞进"文档"。
-
----
-
-## 演示数据里埋了什么
-
-`make_mess.py` 生成 45 个文件、2 个子目录，其中四个是刻意的：
-
-| 文件 | 埋的东西 |
-|---|---|
-| `发票2024.pdf` | 内容是一张合法的 1024×768 PNG，只有后缀是 pdf |
-| `~$课件.docx` | 0 字节，Word 的锁文件残留 |
-| `备份_旧版.bak` | 内容是 gzip 数据流，但已损坏，解不开 |
-| `课程资料/实验报告.pdf` | 与根目录 `实验报告.pdf` 同名但内容不同（同大小、不同 MD5） |
-
-另外所有 `.png` 用的是同一份字节，MD5 完全相同，agent 可能会主动指出"这 7 张图内容一致"。
-
----
-
 ## 已知限制
 
-- 生成的 `.docx` / `.xlsx` / `.pptx` / `.zip` **只有 `PK` 文件头，不是有效的 ZIP**。agent 如果去解压会发现解不开，可能据此把它们放进"待确认"。要修就得用 `zipfile` 生成真实容器。
-- `key.txt` 是明文凭证，**不要提交、不要外发**。仓库里那份 `key=` 是空的。
-- 依赖 `api.apigoto.com` 这个中转服务。换官方 API 只需要改 `key.txt` 的三行，不用改代码。
+- 生成的 `.docx` / `.xlsx` / `.pptx` / `.zip` **只有 `PK` 文件头，不是有效的 ZIP**。agent 如果去解压会发现解不开，可能据此把它们放进"待确认"。可能需要 `zipfile` 生成真实容器。
+- `key.txt` 是明文凭证，**不要提交、不要外发**。
 - **Git Bash 里没有 `file` 命令**（PortableGit 的 `usr\bin` 下不含 `file.exe`）。agent 会先试 `file`、失败后自己退回 `od` / `xxd` 读魔数——实测能退回来，但第一轮会多花一两次调用。
 - `runtime/git` 是裁剪版（68 MB）。`git` 命令本身用不了（删了 `mingw64/`），只有 bash + coreutils。演示够用；要真用 git 请装完整版 Git for Windows（130 MB）。
 - 只在 Windows 上验证过。`chat.py` 里 `find_node` / `find_bash` 的路径都是 Windows 写法，换 macOS/Linux 要改。
 
 ---
 
-## 想改的话
+## 修改方式
 
-**换模型 / 换供应商**：改 `key.txt` 那五行，重新双击 `3_chat.cmd`。不用改代码，也不用动 Pi 的配置文件。
+**换模型 / 换供应商**：改 `key.txt` ，重新双击 `3_chat.cmd`。
 
-**换任务**：不用改代码，直接在对话里下别的指令。
+**换任务**：直接在对话里下别的指令。
 
 **改规矩**：编辑 `stage/AGENTS.md`，下一轮立刻生效。
 
@@ -486,6 +385,6 @@ set PI_CODING_AGENT_DIR=%~dp0.pi-agent
 runtime\node\node.exe node_modules\@earendil-works\pi-coding-agent\dist\bundle\cli.js --provider apigoto --model deepseek-flash "你的话"
 ```
 
-**要拆开看内核**：`python folder_agent.py`，12 行 Python 复现同一套循环，不调模型，跑得很快，用来说明"harness 的本质就是工具 + 循环 + 回传 + 核对"。
+**拆解内核**：`python folder_agent.py`，12 行 Python 复现同一套循环，不调模型，跑得很快，用来说明"harness 的本质就是工具 + 循环 + 回传 + 核对"。
 
 **要讲这堂课**：`HTML演示稿指导.md` 教怎么做演示稿（风格选择 + 八页内容 + 技术要点），`素材指导.md` 教怎么录对比视频、怎么整理数据图表。`slides.html` 是早期做的示例页面，仅供参考。
