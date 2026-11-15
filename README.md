@@ -7,8 +7,6 @@
 
 一个用来演示 **Agent = Model + Harness** 的最小装置。
 
-同一句"帮我把这个文件夹整理一下"，走网页对话框只能得到一段建议，走这里能真的把文件搬完。区别不在模型，在模型外面那层壳。
-
 技术上它是：**一个 Python 对话外壳 + 一个真实的开源 agent（Pi）+ 一个隔离的待整理区**。
 
 ---
@@ -21,19 +19,18 @@
 
 **开发过程中使用了 DeepSeek 参与开发**：代码实现、排错（WSL bash 误用、Git Bash shim 问题、provider 配置生成）、文档撰写均有 AI 辅助。具体做了哪些事，见下节。
 
-> 谢绝把 AI 的产出当成自己的独立成果。这一节就是写清楚边界。
 
 ### 我们实际做了什么
 
 | 工作 | 说明 |
 |---|---|
-| `chat.py` 对话外壳 | 340 行 → 450 行，驱动 Pi 的 `--mode json` 事件流，翻译成人能看的输出 |
-| 调试模式 | 新增。启动时 Y/N 选择，把思考过程、工具调用、完整命令和返回内容全部摊开 |
-| shell 解析修复 | 原版 `shutil.which("bash")` 会选中 WSL 启动器，导致每条命令都失败。改成候选收集 + 剔除 WSL + 实跑验证 |
-| provider 配置生成 | 按 `key.txt` 动态生成 `.pi-agent/models.json`，解决换机器就报 `Unknown provider` 的问题 |
-| 可移植打包 | 把 node / Git Bash / Python 塞进 `runtime/`，286 MB 整套拷走即用，目标机不需要装任何东西 |
-| 演示数据 | `make_mess.py` 生成 45 个文件，内含假 PDF、0 字节残留、同名冲突等刻意的坑 |
-| 行为约束 | `stage/AGENTS.md` 五条规矩，让 agent 不删文件、不覆盖、前后数数、看内容不看后缀 |
+| `chat.py` 对话外壳 | 驱动 Pi 的 `--mode json` 事件流，翻译输出 |
+| 调试模式 | 启动时 Y/N 选择，把思考过程、工具调用、完整命令和返回内容全部摊开 |
+| shell 解析修复 | 原版 WSL 启动器改成候选收集  |
+| provider 配置生成 | 按 `key.txt` 动态生成 `.pi-agent/models.json`，解决 `Unknown provider` 的问题 |
+| 可移植打包 | 把 node / Git Bash / Python 塞进 `runtime/`，286 MB 整套拷走即用 |
+| 演示数据 | `make_mess.py` 生成 45 个文件，内含假 PDF、0 字节残留、同名冲突等杂乱脏文件 |
+| 行为约束 | `stage/AGENTS.md` 规范 agent 行为|
 | 文档 | 演示稿指导、素材指导、原理图规格、本 README |
 
 ### 上游依赖
@@ -55,7 +52,7 @@
 
 **不包含**（`.gitignore` 已排除，需自行准备）：
 
-- `key.txt` —— API 凭证，用 `key.txt.example` 改名后填自己的 key
+- `key.txt` —— API 凭证
 - `runtime/` —— 内置的 node / Git Bash / Python（172 MB）
 - `node_modules/` —— Pi 及其依赖（110 MB）
 - `stage/workspace/` —— 演示用乱文件，双击 `1_make.cmd` 可重新生成
@@ -82,17 +79,17 @@
 
 ### 三个脚本分别干什么
 
-| 双击 | 作用 | 副作用 |
-|---|---|---|
-| `1_make.cmd` | 在 `stage/workspace/` 里铺 45 个文件 + 2 个子目录，约 0.5 秒 | **会先清空**待整理区再重建 |
-| `2_clear.cmd` | 清空待整理区，问你 `y/N` | 只删 `stage/workspace/` 里面的东西，别处不动 |
-| `3_chat.cmd` | 进入对话，等你的指令 | 只读写 `stage/workspace/`（Pi 的工作目录是 `stage/`） |
+| 双击 | 作用 | 
+|---|---|
+| `1_make.cmd` | 在 `stage/workspace/` 里铺 45 个文件 + 2 个子目录，约 0.5 秒 |
+| `2_clear.cmd` | 清空待整理区，问你 `y/N` |
+| `3_chat.cmd` | 进入对话，等你的指令 |
 
-一般流程就是 **1 → 3 → 用完 2 清场 → 下次再 1**。
+一般流程： **1 → 3 → 用完 2 清场 → 下次再 1**。
 
 ### 调试模式
 
-双击 `3_chat.cmd` 后，程序先问一句：
+双击 `3_chat.cmd` 后进入调试确认：
 
 ```
 要进入调试模式吗？
@@ -136,15 +133,14 @@
 整理完成。移动 40 个，45 → 45 对得上……
 ```
 
-- **`▸ 执行 …`** —— agent 要调工具了，后面是它实际执行的命令（`cd` 前缀被我省掉了，因为每轮都在 `stage/` 里）
-- **缩进那一行** —— 工具返回的第一行，用来确认它真的跑成功了
-- **没有箭头的一大段** —— agent 最后说的话，原样给你，不加旁白
+- **`▸ 执行 …`** —— agent 调用工具
+- **缩进那一行** —— 工具返回，反馈运行成功
+- **没有箭头的一大段** —— agent 对用户输出
 
-一次任务通常会调十几次工具，中间那些光标闪动就是它在想。
 
 ### 可以直接下的指令
 
-`stage/AGENTS.md` 只规定了五条**行为规矩**（不许删、不许覆盖、前后数数、看内容不看后缀、最后报告），具体做什么完全由你现说。
+`stage/AGENTS.md` 只规定了五条**行为规矩**（不许删、不许覆盖、前后数数、看内容不看后缀、最后报告）
 
 已验证能跑通的：
 
@@ -156,12 +152,10 @@
 | `找出重复的文件` | 用 `md5sum` 比对，报出同哈希的组 |
 | `统计一下有几个文件、总共多大` | 只读不写 |
 
-想加新任务不用改代码，直接说就行。
-
 ### 退出与重置
 
-- 输入 `quit` / `exit` / `q` 退出，或按 `Ctrl+C`
-- 每次启动都是**全新对话**（session id 带时间戳），不会记得上一轮说过什么
+- 输入 `quit` / `exit` / `q` 退出，或 `Ctrl+C`
+- 每次启动都是**全新对话**（session id 带时间戳），不记录记忆
 - 想恢复干净环境：`2_clear.cmd` 清空 → `1_make.cmd` 重建
 
 ### 填 key
@@ -170,14 +164,14 @@
 
 ```
 # 把下面的 key 换成你自己的，然后保存。这个文件不要发给别人。
-provider=apigoto
-model=deepseek-flash
-key=
+provider=name
+model=modelid
+key=**-*****
 thinking=minimal
-base_url=https://api.apigoto.com/v1
+base_url=http(s)://ip/v1
 ```
 
-在 `key=` 后面填上你的 key 就完事。五个字段的含义见 [换 provider 和 key](#换-provider-和-key)。
+在 `key=` 后面填上 key。五个字段的含义见 [换 provider 和 key](#换-provider-和-key)。
 
 ---
 
@@ -216,19 +210,19 @@ harness-demo/
 
 ## 换一台电脑用
 
-### 最省事的方式
+### 一般使用的方式
 
 用 `harness-demo-portable.zip`（106 MB）。解压出来是一个 `harness-demo/` 文件夹，进去填好 `key.txt`，双击 `3_chat.cmd`。
 
-目标机 **不需要装 node / Git / Python**，`runtime/` 里都带着。
+目标机 **不需要装 node / Git / Python**，`runtime/` 。
 
-### 或者整个文件夹直接拷
+### 整个文件夹拷贝
 
-一样能跑。注意事项：
+注意事项：
 
 - 拷到 U 盘/网盘时确认 `runtime/node/node.exe`（83 MB）没被同步工具跳过
 - 路径里**可以有中文和空格**，脚本都用 `%~dp0` 自己定位
-- 路径**不要超过 240 个字符**，Windows 老 API 有长度限制，node_modules 里有些深层路径比较长
+- 路径**不要超过 240 个字符**，Windows 老 API 有长度限制
 
 ### 换 provider 和 key
 
@@ -263,14 +257,6 @@ base_url=https://api.example.com/v1
 ```
 
 只要对方是 OpenAI 兼容协议（`POST /chat/completions`），这样就能直接用。内置的 `deepseek` / `openai` / `anthropic` 等也可以写进 `provider=`，但那样需要它们各自的官方 key。
-
-### 分发给别人之前
-
-1. 清空 `key.txt` 的 `key=` 那一行，或直接删掉这个文件（`key.txt.example` 留着就够了）
-2. 想减小体积可以删 `stage/workspace/` 里的东西，反正 `1_make.cmd` 会重建
-3. `.gitignore` 已经排除了 `key.txt`、`runtime/`、`.pi-agent/`、`node_modules/`
-
----
 
 ## chat.py 干了什么
 
