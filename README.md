@@ -13,6 +13,36 @@
 
 ---
 
+## 来源与说明
+
+**本项目修改自 [Pi](https://github.com/earendil-works/pi)**（`@earendil-works/pi-coding-agent`，MIT 协议）。
+
+原项目的 agent 循环、工具系统、事件流都由 Pi 提供；本项目在它外面加了一层中文对话外壳、调试模式、可移植运行时打包和演示数据。
+
+**开发过程中使用了 DeepSeek 参与开发**：代码实现、排错（WSL bash 误用、Git Bash shim 问题、provider 配置生成）、文档撰写均有 AI 辅助。具体做了哪些事，见下节。
+
+> 谢绝把 AI 的产出当成自己的独立成果。这一节就是写清楚边界。
+
+### 我们实际做了什么
+
+| 工作 | 说明 |
+|---|---|
+| `chat.py` 对话外壳 | 340 行 → 450 行，驱动 Pi 的 `--mode json` 事件流，翻译成人能看的输出 |
+| 调试模式 | 新增。启动时 Y/N 选择，把思考过程、工具调用、完整命令和返回内容全部摊开 |
+| shell 解析修复 | 原版 `shutil.which("bash")` 会选中 WSL 启动器，导致每条命令都失败。改成候选收集 + 剔除 WSL + 实跑验证 |
+| provider 配置生成 | 按 `key.txt` 动态生成 `.pi-agent/models.json`，解决换机器就报 `Unknown provider` 的问题 |
+| 可移植打包 | 把 node / Git Bash / Python 塞进 `runtime/`，286 MB 整套拷走即用，目标机不需要装任何东西 |
+| 演示数据 | `make_mess.py` 生成 45 个文件，内含假 PDF、0 字节残留、同名冲突等刻意的坑 |
+| 行为约束 | `stage/AGENTS.md` 五条规矩，让 agent 不删文件、不覆盖、前后数数、看内容不看后缀 |
+| 文档 | 演示稿指导、素材指导、原理图规格、本 README |
+
+### 上游依赖
+
+- **Pi** — https://github.com/earendil-works/pi ，MIT License
+- 本仓库不修改 Pi 的源码，只调用它的 CLI
+
+---
+
 ## 本仓库包含什么
 
 | 类型 | 文件 |

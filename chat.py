@@ -10,6 +10,12 @@ chat.py —— 和 agent 对话
 
 整个文件夹可以原样拷到别的 Windows 机器上跑：node / Git Bash / Python
 都放在 runtime\\ 里，provider 配置由本文件按 key.txt 生成在 .pi-agent\\。
+
+────────────────────────────────────────────────────────────
+来源：本项目修改自 Pi（https://github.com/earendil-works/pi，MIT 协议）。
+      本文件不改 Pi 源码，只调用它的 CLI（--mode json 事件流）。
+      开发过程中有 DeepSeek 参与辅助，详见 NOTICE.md。
+────────────────────────────────────────────────────────────
 """
 
 import glob

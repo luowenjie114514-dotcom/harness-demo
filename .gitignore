@@ -21,3 +21,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ¡Ÿ ±Ω≈±æ
+_release.py
+_push_tmp.py
+_*.py
