@@ -156,8 +156,20 @@ def load_cfg():
     p = os.path.join(HERE, "key.txt")
     if not os.path.exists(p):
         return cfg
-    # utf-8-sig：记事本存 UTF-8 会带 BOM，不去掉的话第一行读不出来
-    for raw in open(p, encoding="utf-8-sig"):
+    # 记事本可能存成 UTF-8（带不带 BOM 都有），也可能存成 GBK。
+    # 直接 utf-8 读 GBK 文件会抛 UnicodeDecodeError，整个程序闪退，
+    # 所以先按 utf-8-sig 试，失败再退到 GBK。
+    text = None
+    for enc in ("utf-8-sig", "gbk"):
+        try:
+            with open(p, encoding=enc) as f:
+                text = f.read()
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        return cfg
+    for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -286,6 +298,7 @@ def ask_debug(prompt, cfg, sid):
     texts = False             # 当前是否在正文块里
     n_tool = 0
 
+    # 逐行读 stdout。子进程异常退出时迭代器会自然结束，不会抛错。
     for raw in p.stdout:
         raw = raw.strip()
         if not raw.startswith("{"):
@@ -367,7 +380,12 @@ def ask_debug(prompt, cfg, sid):
     if texts:
         print()
         print("  └" + "─" * 58)
-    p.wait()
+    try:
+        p.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        print("\n  [!] agent 进程没有按时退出，强制结束本次任务。")
+        p.kill()
+        p.wait()
     print(f"\n  ── 本轮共 {n_tool} 次工具调用 ──")
     return answer
 
@@ -400,6 +418,7 @@ def ask_quiet(prompt, cfg, sid):
         print(f"      node = {NODE}")
         return ""
     answer = ""
+    # 逐行读 stdout。子进程异常退出时迭代器会自然结束，不会抛错。
     for raw in p.stdout:
         raw = raw.strip()
         if not raw.startswith("{"):
@@ -446,17 +465,40 @@ def choose_mode():
 
 
 def main():
+    try:
+        return _main()
+    except KeyboardInterrupt:
+        print("\n\n已中断。")
+        return 130
+    except Exception as e:
+        # 真出了没预料到的错，也不能让窗口一闪就关——把现场留给人看。
+        print("\n[!] 程序出错了，但没有直接闪退：")
+        print(f"    {type(e).__name__}: {e}")
+        print("    把上面这段发给开发者，或者对照 README 的常见问题排查。")
+        return 1
+
+
+def _main():
     if not NODE:
         print("找不到 node.exe。装一个 Node.js，或者把它的目录加到 PATH 里。")
         return 1
     if not BASH:
         print("找不到 bash.exe。装一个 Git for Windows 就行。")
         return 1
+    if not os.path.isfile(CLI):
+        print(f"找不到 Pi 的 CLI：{CLI}")
+        print("先在项目目录里执行一次 npm install。")
+        return 1
     cfg = load_cfg()
     if not cfg["key"]:
-        print("key.txt 里没有 key。打开 key.txt，把 key= 后面填上你自己的。")
+        print("key.txt 里没有 key。把同目录的「APIKEY配置教程.txt」改名成 key.txt，")
+        print("在 key= 后面填上你自己的 API key，保存后重新运行。")
         return 1
-    ensure_agent_dir(cfg, BASH)
+    try:
+        ensure_agent_dir(cfg, BASH)
+    except OSError as e:
+        print(f"写配置失败（磁盘满？目录只读？）：{e}")
+        return 1
 
     debug = choose_mode()
     print()
@@ -476,7 +518,12 @@ def main():
         if q.lower() in ("quit", "exit", "q"):
             break
         print()
-        ans = ask_debug(q, cfg, sid) if debug else ask_quiet(q, cfg, sid)
+        try:
+            ans = ask_debug(q, cfg, sid) if debug else ask_quiet(q, cfg, sid)
+        except Exception as e:
+            print(f"\n  [!] 这一轮出错了：{type(e).__name__}: {e}")
+            print("  可以继续输入下一句，或输入 quit 退出。")
+            ans = ""
         if ans:
             print("\n" + ans.strip() + "\n")
         print()

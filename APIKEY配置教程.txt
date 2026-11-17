@@ -1,0 +1,34 @@
+# APIKEY 配置教程
+#
+# ─────────────────────────────────────────────────────────────
+# 使用方法：把本文件改名成 key.txt（和 3_chat.cmd 放在同一目录），
+# 在 key= 后面填上你的 API key，保存，然后双击 3_chat.cmd。
+# ─────────────────────────────────────────────────────────────
+
+provider=apigoto
+model=deepseek-flash
+key=
+thinking=minimal
+base_url=https://api.apigoto.com/v1
+
+# ─────────────────────────────────────────────────────────────
+# 各字段说明
+#
+# provider   供应商名字，自己起也行。改了它，base_url 必须一起改。
+# model      模型 id，写供应商文档里那个名字。
+# key        你的 API key。这是唯一必填的一项，其他字段都有默认值。
+# thinking   思考档位：off / minimal / low / medium / high / xhigh / max
+#            留空或 off 就是不带 --thinking 参数（更快、更省）。
+#            注意：调试模式会强制开启思考，此值只影响普通模式。
+# base_url   OpenAI 兼容接口的地址，一般以 /v1 结尾。
+#
+# 换一家供应商的例子（假设叫 myprov）：
+#   provider=myprov
+#   model=some-model
+#   key=sk-xxxx
+#   thinking=
+#   base_url=https://api.example.com/v1
+#
+# 只要对方是 OpenAI 兼容协议（POST /chat/completions）就能直接用。
+# 改完保存，重新双击 3_chat.cmd 就生效。
+# ─────────────────────────────────────────────────────────────
